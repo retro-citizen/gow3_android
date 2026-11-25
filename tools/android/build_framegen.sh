@@ -49,6 +49,9 @@ fi
 git -C "$src" cat-file -e "$BLOODFRAME_COMMIT^{commit}" 2>/dev/null ||
     git -C "$src" fetch -q origin main
 git -C "$src" -c advice.detachedHead=false checkout -q "$BLOODFRAME_COMMIT"
+# The original remote is no longer public. This public fork contains the
+# exact pinned 78ab59a8 commit; keep the gitlink revision unchanged.
+git -C "$src" config submodule.thirdparty/dxbc.url https://github.com/GameNative/dxbc.git
 [[ $(git -C "$src" rev-parse HEAD) == "$BLOODFRAME_COMMIT" ]] ||
     { echo "$src is not at $BLOODFRAME_COMMIT" >&2; exit 1; }
 # 上游 build-android.sh 硬编码 linux-x86_64 工具链目录：按宿主替换（macOS=darwin-x86_64）。

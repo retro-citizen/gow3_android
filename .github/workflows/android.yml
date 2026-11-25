@@ -196,6 +196,18 @@ jobs:
           bash tools/android/build_bionic_deps.sh
           bash tools/android/build_bionic.sh
 
+      - name: Expose compiler diagnostics
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for path in Path('out/bionic').glob('*build.log'):
+              text = path.read_text(errors='replace')[-50000:]
+              for index in range(0, len(text), 3000):
+                  chunk = text[index:index+3000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title={path.name}-{index}::{chunk}')
+          PY
+
       - name: Derive and apply release version from tag
         if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '-bionic-v')
         shell: bash
