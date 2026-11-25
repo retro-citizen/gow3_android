@@ -16,7 +16,9 @@ version=$(sed -n 's/.*versionName *= *"\([^"]*\)".*/\1/p' android-launcher/app/b
 apk="out/release/God of War III-bionic-$version.apk"
 
 # Steam sign-in libraries (SteamDllDialog.java); fetched on demand like the debug payload.
-[[ -f .local-deps/android/steam-libs/jars.txt ]] || bash tools/android/inputs/fetch_steam_libs.sh
+if [[ ${GOW3_SKIP_STEAM_LIBS:-0} != 1 ]]; then
+    [[ -f .local-deps/android/steam-libs/jars.txt ]] || bash tools/android/inputs/fetch_steam_libs.sh
+fi
 
 # The Bionic runtime payload, into the release source set the Kotlin launcher reads
 # (android-launcher/app/build.gradle.kts: out/android-release/assets).

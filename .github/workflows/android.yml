@@ -47,6 +47,9 @@ jobs:
     permissions:
       contents: write
     env:
+      # Device compatibility tests use the existing no-Steam fallback. Frame
+      # generation is off; JavaSteam downloads must not block renderer testing.
+      GOW3_SKIP_STEAM_LIBS: ${{ github.ref == 'refs/heads/fix/ypro-no-sparse' && '1' || '0' }}
       # 签名双路径：配置了 4 个 secrets 时还原正式 keystore 签名；未配置时
       # build_release_apk.sh 自动生成本地 dev key 签名（产物定位为 development APK）。
       GOW3_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -182,6 +185,7 @@ jobs:
           fi
 
       - name: Fetch Steam libraries
+        if: env.GOW3_SKIP_STEAM_LIBS != '1'
         shell: bash
         run: |
           set -euo pipefail
@@ -193,15 +197,19 @@ jobs:
       - name: Build the Bionic runtime
         shell: bash -el {0}
         run: |
-          bash tools/android/build_bionic_deps.sh
-          bash tools/android/build_bionic.sh
+          set -euo pipefail
+          mkdir -p out
+          bash tools/android/build_bionic_deps.sh 2>&1 | tee out/native-console.log
+          bash tools/android/build_bionic.sh 2>&1 | tee -a out/native-console.log
 
       - name: Expose compiler diagnostics
         if: failure()
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          for path in Path('out/bionic').glob('*build.log'):
+          for path in [Path('out/native-console.log'), *Path('out/bionic').glob('*build.log')]:
+              if not path.exists():
+                  continue
               text = path.read_text(errors='replace')[-50000:]
               for index in range(0, len(text), 3000):
                   chunk = text[index:index+3000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
