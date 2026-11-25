@@ -13,7 +13,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/retro-citizen/gow3_android/actions/jobs/139314126851/logs > build.log 2> api-error.log || true
+          gh api --allow-escape-sequences repos/retro-citizen/gow3_android/actions/jobs/139314126851/logs > build.log 2> api-error.log || true
           tail -350 build.log > compiler-tail.txt
           python3 - <<'PY'
           from pathlib import Path
