@@ -19,6 +19,7 @@ jobs:
           from pathlib import Path
           for name in ['api-error.log', 'compiler-tail.txt']:
               text = Path(name).read_text(errors='replace')[-55000:]
-              text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error title={name}::{text}')
+              for index in range(0, len(text), 3000):
+                  chunk = text[index:index+3000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title={name}-{index}::{chunk}')
           PY
