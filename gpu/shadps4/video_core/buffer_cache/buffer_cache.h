@@ -42,7 +42,7 @@ class BufferCache {
     // gow3: arena pages are 4 GiB unless the driver's buffer size limit is lower (AMD's
     // Windows driver: 2 GiB); an arena spans up to two pages, so they shrink to half the limit.
     static constexpr u64 MAX_ARENA_PAGE_BITS = 32;
-    static constexpr u64 MIN_ARENA_PAGE_BITS = 30;
+    static constexpr u64 MIN_ARENA_PAGE_BITS = 25;
     static constexpr u64 MAX_ARENA_PAGES = u64{1} << (ADDRESS_SPACE_BITS - MIN_ARENA_PAGE_BITS);
     static constexpr u64 MIN_BLOCK_SIZE = 16_KB;
 
@@ -117,6 +117,12 @@ public:
     /// Commits pending sparse buffer memory binds. Must be called before every scheduler submit.
     void SubmitPendingArenaBinds(Vulkan::SubmitInfo& info);
 
+    // Fully bound arenas move on coalescing. Resolve descriptors after all resources
+    // of a draw have been obtained so overlapping bindings use the same backing.
+    std::pair<const Buffer*, u64> ResolveBuffer(const Buffer* buffer, u64 offset) const;
+    void ResolveBufferHandle(vk::Buffer& buffer, u64& offset) const;
+    void RetireBoundArenas();
+
 private:
     struct ArenaBinds {
         const Buffer* arena;
@@ -132,6 +138,8 @@ private:
     }
 
     const Buffer* GetArena(u64 first_block, u64 last_block);
+    const Buffer* GetBoundArena(u64 first_block, u64 last_block);
+    void UpdatePageTable(const Buffer* arena, u64 first_block, u64 end_block);
 
     void EnsureResident(const Buffer* arena, u64 first_block, u64 last_block);
 
@@ -177,6 +185,7 @@ private:
     u64 arena_page_size{u64{1} << MAX_ARENA_PAGE_BITS};
     u64 num_arena_pages{u64{1} << (ADDRESS_SPACE_BITS - MAX_ARENA_PAGE_BITS)};
     std::deque<Buffer> arenas;
+    std::vector<Buffer*> retired_bound_arenas;
     std::vector<ArenaBinds> pending_binds;
     Vulkan::Semaphore memory_semaphore;
 

@@ -101,6 +101,10 @@ public:
         return sparse_queue;
     }
 
+    bool SupportsSparseBuffers() const {
+        return supports_sparse_buffers;
+    }
+
     vk::Queue GetPresentQueue() const {
         return present_queue;
     }
@@ -601,6 +605,7 @@ private:
     bool mixed_float_dot_product{}; // gow3: VK_VALVE_shader_mixed_float_dot_product (FSR 4.1.1)
     bool conditional_rendering{};   // gow3: VK_EXT_conditional_rendering (IT_SET_PREDICATION)
     bool supports_memory_budget{};
+    bool supports_sparse_buffers{};
     bool supports_block_texel_view{};
     u64 total_memory_budget{};
     std::vector<size_t> valid_heaps;

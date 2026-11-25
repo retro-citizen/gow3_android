@@ -1105,6 +1105,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
             });
         }
     }
+    RefreshBoundBuffers();
     pipeline->BindResources(set_writes, push_data);
     // gow3: jitter geometry drawn with the scene depth, not full-screen passes (a shifted
     // full-screen quad leaves an edge column unwritten).
@@ -1256,6 +1257,7 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     push_data.xoffset *= target_scale[0];
     push_data.yscale *= target_scale[1];
     push_data.yoffset *= target_scale[1];
+    RefreshBoundBuffers();
     pipeline->BindResources(set_writes, push_data);
     draw_jitter = {};
     if (upscaler->Enabled() && db_desc.first && db_desc.first == camera_motion->Depth()) {
@@ -1367,6 +1369,7 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline, const DrawPredi
 
     scheduler.EndRendering();
     mark();
+    RefreshBoundBuffers();
     pipeline->BindResources(set_writes, push_data);
 
     const vk::Pipeline handle = pipeline->Handle();
@@ -1440,6 +1443,7 @@ void Rasterizer::DispatchIndirectRecord(const ComputePipeline* pipeline, VAddr a
         }
         std::tie(args, args_offset) = indirect_guard->CheckArgs(*buffer, base);
     }
+    RefreshBoundBuffers();
     pipeline->BindResources(set_writes, push_data);
 
     const vk::Pipeline handle = pipeline->Handle();
@@ -1736,7 +1740,35 @@ bool Rasterizer::BindResources(const Pipeline* pipeline) {
         fault_process_pending = true;
     }
 
+
     return true;
+}
+
+void Rasterizer::RefreshBoundBuffers() {
+    if (!instance.SupportsSparseBuffers()) {
+        // A later resource may coalesce the arena used by an earlier resource.
+        // Refresh every descriptor before pushing the set, including overlapping
+        // read/write bindings, so they alias the current allocation.
+        for (auto& bound : bound_buffers) {
+            const auto [current, offset] = buffer_cache.ResolveBuffer(bound.buffer, bound.offset);
+            if (current != bound.buffer) {
+                for (auto& info : buffer_infos) {
+                    if (info.buffer == bound.buffer->Handle()) {
+                        info.offset += bound.buffer->cpu_addr - current->cpu_addr;
+                        info.buffer = current->Handle();
+                    }
+                }
+                bound.buffer = current;
+                bound.offset = offset;
+            }
+            needs_barrier |= runtime.IsBufferAccessed(bound.buffer, bound.offset,
+                                                       bound.size, bound.is_written);
+        }
+    }
+
+    if (needs_barrier && !instance.SupportsSparseBuffers()) {
+        runtime.FlushBarriers();
+    }
 }
 
 void Rasterizer::BindVertexBuffers(const GraphicsPipeline* pipeline, const PreparedDraw* prepared) {
@@ -1748,6 +1780,11 @@ void Rasterizer::EmitVertexBuffers() {
     // gow3: only the used entries go into the recording chunk (the static vectors hold 32 of
     // each: ~3 KiB copied per draw).
     auto& v = vertex_binds;
+    if (!instance.SupportsSparseBuffers()) {
+        for (u32 i = 0; i < v.num_buffers; ++i) {
+            buffer_cache.ResolveBufferHandle(v.host_buffers[i], v.host_offsets[i]);
+        }
+    }
     const bool dynamic_input = instance.IsVertexInputDynamicState();
     const u32 num_buffers = v.num_buffers;
     scheduler.ReserveRecordData(
@@ -1919,6 +1956,7 @@ void Rasterizer::BindIndexBuffer(u32 index_offset) {
 }
 
 void Rasterizer::EmitIndexBuffer() {
+    buffer_cache.ResolveBufferHandle(index_bind.handle, index_bind.offset);
     scheduler.Record([handle = index_bind.handle, offset = index_bind.offset,
                       type = index_bind.type](vk::CommandBuffer cmdbuf) {
         cmdbuf.bindIndexBuffer(handle, offset, type);
@@ -1957,6 +1995,7 @@ void Rasterizer::ResetBindings(bool is_compute) {
     }
     bound_images.clear();
     bound_buffers.clear();
+    buffer_cache.RetireBoundArenas();
     needs_barrier = false;
 }
 

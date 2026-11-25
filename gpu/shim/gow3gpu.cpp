@@ -232,6 +232,7 @@ extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
     std::printf("GOW3_NATIVE_FIX_081DF6F=active\n");
     // native 移植标志：用于确认设备运行的是包含 195c7ab 修复的 GPU 库。
     std::printf("GOW3_NATIVE_FIX_195C7AB=active\n");
+    std::printf("GOW3_NATIVE_FIX_YPRO_BOUND_BUFFERS=experimental\n");
     // native 移植标志：用于确认设备运行的是包含 a101edb 修复的 GPU 库。
     std::printf("GOW3_NATIVE_FIX_A101EDB=active\n");
     // native 移植标志：用于确认设备运行的是 recorder chunk 防护修复的 GPU 库。

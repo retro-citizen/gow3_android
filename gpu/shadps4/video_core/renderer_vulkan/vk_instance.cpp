@@ -179,7 +179,8 @@ Instance::Instance(const Frontend::WindowSystemInfo& window_info, s32 physical_d
                VK_VERSION_MAJOR(TargetVulkanApiVersion), VK_VERSION_MINOR(TargetVulkanApiVersion),
                VK_VERSION_MAJOR(properties.apiVersion), VK_VERSION_MINOR(properties.apiVersion));
 
-    CreateDevice();
+    ASSERT_MSG(CreateDevice(),
+               "Vulkan device initialization failed; see the preceding GPU error");
     CollectPhysicalMemoryInfo();
     CollectImageFormatInfo();
     CollectToolingInfo();
@@ -440,12 +441,18 @@ bool Instance::CreateDevice() {
                 return family.queueCount && (family.queueFlags & vk::QueueFlagBits::eSparseBinding);
             });
         if (sparse_family == family_properties.end()) {
-            LOG_CRITICAL(Render_Vulkan,
+            LOG_WARNING(Render_Vulkan,
                          "Unable to find a queue family with VK_QUEUE_SPARSE_BINDING_BIT; "
-                         "sparse buffer bindings are unavailable on this device.");
-            return false;
+                         "using fully bound buffer arenas instead.");
+        } else {
+            sparse_queue_family_index = static_cast<u32>(sparse_family - family_properties.begin());
         }
-        sparse_queue_family_index = static_cast<u32>(sparse_family - family_properties.begin());
+    }
+    supports_sparse_buffers = features.sparseBinding && features.sparseResidencyBuffer &&
+        bool(family_properties[sparse_queue_family_index].queueFlags & vk::QueueFlagBits::eSparseBinding);
+    if (!supports_sparse_buffers) {
+        sparse_queue_family_index = queue_family_index;
+        LOG_WARNING(Render_Vulkan, "Sparse buffers unavailable: using compatibility buffer cache");
     }
     LOG_INFO(Render_Vulkan, "Queue families: graphics={}, sparse={}, reused_graphics={}",
              queue_family_index, sparse_queue_family_index,
@@ -512,8 +519,8 @@ bool Instance::CreateDevice() {
                 .shaderFloat64 = features.shaderFloat64,
                 .shaderInt64 = features.shaderInt64,
                 .shaderInt16 = features.shaderInt16,
-                .sparseBinding = features.sparseBinding,
-                .sparseResidencyBuffer = features.sparseResidencyBuffer,
+                .sparseBinding = supports_sparse_buffers,
+                .sparseResidencyBuffer = supports_sparse_buffers,
             },
         },
         vk::PhysicalDeviceVulkan11Features{

@@ -3,7 +3,7 @@ name: android
 on:
   pull_request:
   push:
-    branches: [main, gow3, android]
+    branches: [main, gow3, android, fix/ypro-no-sparse]
     tags: ['v*']
   workflow_dispatch:
 
@@ -263,6 +263,22 @@ jobs:
             out/release/*.apk.sha256
           if-no-files-found: error
           retention-days: 14
+
+      - name: Build side-by-side debug APK for device verification
+        if: github.ref == 'refs/heads/fix/ypro-no-sparse'
+        run: |
+          android-launcher/gradlew -p android-launcher :app:assembleDebug
+          mkdir -p out/ypro-debug
+          cp android-launcher/app/build/outputs/apk/debug/*-debug.apk out/ypro-debug/
+
+      - name: Upload device debug APK
+        if: github.ref == 'refs/heads/fix/ypro-no-sparse'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gow3-ypro-debug-${{ github.sha }}
+          path: out/ypro-debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Remove signing material
         if: always()
