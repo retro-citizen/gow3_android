@@ -1232,9 +1232,9 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     }
     const auto state = BeginRendering(pipeline);
 
-    BindVertexBuffers(pipeline);
+    ResolveVertexBuffers(pipeline, nullptr);
     if (is_indexed) {
-        BindIndexBuffer();
+        ResolveIndexBuffer(0);
     }
 
     const auto [buffer, base] =
@@ -1246,6 +1246,11 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     if (count_address != 0) {
         std::tie(count_buffer, count_offset) = buffer_cache.ObtainBuffer(count_address, 4, false);
         needs_barrier |= runtime.IsBufferAccessed(count_buffer, count_offset, 4);
+    }
+
+    EmitVertexBuffers();
+    if (is_indexed) {
+        EmitIndexBuffer();
     }
 
     if (needs_barrier) {
@@ -1273,8 +1278,8 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
                                  : sizeof(VkDrawIndirectCommand)));
     const vk::Pipeline handle = pipeline->Handle();
     const vk::Pipeline square = SquarePass(*pipeline);
-    const vk::Buffer args = buffer->Handle();
-    const u64 args_offset = base;
+    const auto [args_buffer, args_offset] = buffer_cache.ResolveBuffer(buffer, base);
+    const vk::Buffer args = args_buffer->Handle();
     const vk::Buffer counts = count_address != 0 ? count_buffer->Handle() : vk::Buffer{};
     const u64 counts_offset = count_address != 0 ? count_offset : 0;
     const auto& vs_info_i = pipeline->GetStage(Shader::SwStage::Vertex);
