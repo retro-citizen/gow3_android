@@ -45,7 +45,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
     env:
       # 签名双路径：配置了 4 个 secrets 时还原正式 keystore 签名；未配置时
       # build_release_apk.sh 自动生成本地 dev key 签名（产物定位为 development APK）。
@@ -279,6 +279,17 @@ jobs:
           path: out/ypro-debug/*.apk
           if-no-files-found: error
           retention-days: 7
+
+      - name: Make experimental APK downloadable for USB testing
+        if: github.ref == 'refs/heads/fix/ypro-no-sparse'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "ypro-test-${GITHUB_SHA:0:12}" out/ypro-debug/*.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Y Pro compatibility test ${GITHUB_SHA:0:12}" \
+            --prerelease --latest=false \
+            --notes 'Experimental Native Bionic v4 compatibility build for devices without Vulkan sparse buffers. Build success does not establish that gameplay works. No game data or user logs are included.'
 
       - name: Remove signing material
         if: always()
