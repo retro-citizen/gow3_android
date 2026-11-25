@@ -13,6 +13,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/retro-citizen/gow3_android/actions/jobs/139314126851/logs > build.log
+          gh api repos/retro-citizen/gow3_android/actions/jobs/139314126851/logs > build.log 2> api-error.log || true
           tail -350 build.log > compiler-tail.txt
-          gh release create ypro-build-diagnostic-139314126851 compiler-tail.txt --repo retro-citizen/gow3_android --target "$GITHUB_SHA" --title 'Y Pro compiler diagnostic' --prerelease --latest=false --notes 'Compiler output only, for debugging the experimental compatibility build.'
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['api-error.log', 'compiler-tail.txt']:
+              text = Path(name).read_text(errors='replace')[-55000:]
+              text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title={name}::{text}')
+          PY
