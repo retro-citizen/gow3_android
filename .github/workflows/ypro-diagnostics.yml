@@ -1,0 +1,18 @@
+name: Y Pro build diagnostics
+on:
+  push:
+    branches: [fix/build-diagnostics]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Retrieve compiler failure from the test build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/retro-citizen/gow3_android/actions/jobs/139314126851/logs > build.log
+          tail -350 build.log > compiler-tail.txt
+          gh release create ypro-build-diagnostic-139314126851 compiler-tail.txt --repo retro-citizen/gow3_android --target "$GITHUB_SHA" --title 'Y Pro compiler diagnostic' --prerelease --latest=false --notes 'Compiler output only, for debugging the experimental compatibility build.'
